@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/context/auth-context"
-import { getSupabaseBrowser } from "@/lib/supabase"
+import { supabaseBrowser } from "@/lib/supabase-browser"
 import type { Payment, Debt } from "@/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
@@ -16,7 +16,6 @@ export default function PaymentHistory() {
   const [debts, setDebts] = useState<Record<string, Debt>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = getSupabaseBrowser()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -24,7 +23,7 @@ export default function PaymentHistory() {
 
       try {
         // Get verification data to find debtor_id
-        const { data: verificationData, error: verificationError } = await supabase
+        const { data: verificationData, error: verificationError } = await supabaseBrowser
           .from("verification")
           .select("*")
           .eq("user_id", user.id)
@@ -40,7 +39,10 @@ export default function PaymentHistory() {
         const debtorId = verificationData.debtor_id
 
         // Get debts
-        const { data: debtsData, error: debtsError } = await supabase.from("debt").select("*").eq("debtor_id", debtorId)
+        const { data: debtsData, error: debtsError } = await supabaseBrowser
+          .from("debt")
+          .select("*")
+          .eq("debtor_id", debtorId)
 
         if (debtsError || !debtsData) {
           setError("Error fetching debt information")
@@ -59,7 +61,7 @@ export default function PaymentHistory() {
         if (debtsData.length > 0) {
           const debtIds = debtsData.map((debt) => debt.id)
 
-          const { data: paymentsData, error: paymentsError } = await supabase
+          const { data: paymentsData, error: paymentsError } = await supabaseBrowser
             .from("payments")
             .select("*")
             .in("debt_id", debtIds)

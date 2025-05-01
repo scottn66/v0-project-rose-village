@@ -5,7 +5,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/context/auth-context"
-import { getSupabaseBrowser } from "@/lib/supabase"
+import { supabaseBrowser } from "@/lib/supabase-browser"
 import type { Debt } from "@/types"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -25,7 +25,6 @@ export default function Payment() {
   const [error, setError] = useState<string | null>(null)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const router = useRouter()
-  const supabase = getSupabaseBrowser()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,7 +32,7 @@ export default function Payment() {
 
       try {
         // Get verification data to find debtor_id
-        const { data: verificationData, error: verificationError } = await supabase
+        const { data: verificationData, error: verificationError } = await supabaseBrowser
           .from("verification")
           .select("*")
           .eq("user_id", user.id)
@@ -49,7 +48,10 @@ export default function Payment() {
         const debtorId = verificationData.debtor_id
 
         // Get debts
-        const { data: debtsData, error: debtsError } = await supabase.from("debt").select("*").eq("debtor_id", debtorId)
+        const { data: debtsData, error: debtsError } = await supabaseBrowser
+          .from("debt")
+          .select("*")
+          .eq("debtor_id", debtorId)
 
         if (debtsError || !debtsData || debtsData.length === 0) {
           setError("No debt accounts found")
@@ -94,7 +96,7 @@ export default function Payment() {
       const paymentAmount = Number.parseFloat(amount)
 
       // Create payment record
-      const { error: paymentError } = await supabase.from("payments").insert({
+      const { error: paymentError } = await supabaseBrowser.from("payments").insert({
         debt_id: selectedDebtId,
         amount: paymentAmount,
         payment_date: new Date().toISOString(),
@@ -111,7 +113,7 @@ export default function Payment() {
 
       // Update debt balance
       const newBalance = Number(selectedDebt.balance) - paymentAmount
-      const { error: debtError } = await supabase
+      const { error: debtError } = await supabaseBrowser
         .from("debt")
         .update({
           balance: newBalance,

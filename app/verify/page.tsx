@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getSupabaseBrowser } from "@/lib/supabase"
+import { supabaseBrowser } from "@/lib/supabase-browser"
 
 export default function VerifyIdentity() {
   const [loanNumber, setLoanNumber] = useState("")
@@ -22,7 +22,6 @@ export default function VerifyIdentity() {
   const [isVerified, setIsVerified] = useState(false)
   const { user } = useAuth()
   const router = useRouter()
-  const supabase = getSupabaseBrowser()
 
   useEffect(() => {
     // Check if user is already verified
@@ -30,7 +29,7 @@ export default function VerifyIdentity() {
       if (!user) return
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseBrowser
           .from("verification")
           .select("*")
           .eq("user_id", user.id)
@@ -58,7 +57,7 @@ export default function VerifyIdentity() {
 
     try {
       // First, find the debtor with matching loan number and date of birth
-      const { data: debtorData, error: debtorError } = await supabase
+      const { data: debtorData, error: debtorError } = await supabaseBrowser
         .from("debtors")
         .select("*")
         .eq("loan_number", loanNumber)
@@ -79,7 +78,7 @@ export default function VerifyIdentity() {
       }
 
       // Create or update verification record
-      const { error: verificationError } = await supabase.from("verification").upsert({
+      const { error: verificationError } = await supabaseBrowser.from("verification").upsert({
         user_id: user.id,
         debtor_id: debtorData.id,
         verified: true,
@@ -96,7 +95,7 @@ export default function VerifyIdentity() {
       }
 
       // Create or update user profile
-      await supabase.from("user_profiles").upsert({
+      await supabaseBrowser.from("user_profiles").upsert({
         id: user.id,
         email: user.email,
         full_name: `${debtorData.first_name} ${debtorData.last_name}`,

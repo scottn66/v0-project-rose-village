@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/context/auth-context"
-import { getSupabaseBrowser } from "@/lib/supabase"
+import { supabaseBrowser } from "@/lib/supabase-browser"
 import type { Debt, Debtor, Payment } from "@/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,6 @@ export default function Dashboard() {
   const [recentPayments, setRecentPayments] = useState<Payment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = getSupabaseBrowser()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,7 +25,7 @@ export default function Dashboard() {
 
       try {
         // Get verification data to find debtor_id
-        const { data: verificationData, error: verificationError } = await supabase
+        const { data: verificationData, error: verificationError } = await supabaseBrowser
           .from("verification")
           .select("*")
           .eq("user_id", user.id)
@@ -42,7 +41,7 @@ export default function Dashboard() {
         const debtorId = verificationData.debtor_id
 
         // Get debtor information
-        const { data: debtorData, error: debtorError } = await supabase
+        const { data: debtorData, error: debtorError } = await supabaseBrowser
           .from("debtors")
           .select("*")
           .eq("id", debtorId)
@@ -57,7 +56,10 @@ export default function Dashboard() {
         setDebtor(debtorData)
 
         // Get debts
-        const { data: debtsData, error: debtsError } = await supabase.from("debt").select("*").eq("debtor_id", debtorId)
+        const { data: debtsData, error: debtsError } = await supabaseBrowser
+          .from("debt")
+          .select("*")
+          .eq("debtor_id", debtorId)
 
         if (debtsError) {
           setError("Error fetching debt information")
@@ -71,7 +73,7 @@ export default function Dashboard() {
         if (debtsData && debtsData.length > 0) {
           const debtIds = debtsData.map((debt) => debt.id)
 
-          const { data: paymentsData, error: paymentsError } = await supabase
+          const { data: paymentsData, error: paymentsError } = await supabaseBrowser
             .from("payments")
             .select("*")
             .in("debt_id", debtIds)

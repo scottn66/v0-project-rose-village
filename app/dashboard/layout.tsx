@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
-import { getSupabaseBrowser } from "@/lib/supabase"
+import { supabaseBrowser } from "@/lib/supabase-browser"
 import type { UserProfile } from "@/types"
 import { LogOut, User } from "lucide-react"
 
@@ -20,7 +20,6 @@ export default function DashboardLayout({
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isVerified, setIsVerified] = useState(false)
   const router = useRouter()
-  const supabase = getSupabaseBrowser()
 
   useEffect(() => {
     const checkVerification = async () => {
@@ -31,7 +30,7 @@ export default function DashboardLayout({
 
       try {
         // Check if user is verified
-        const { data: verificationData, error: verificationError } = await supabase
+        const { data: verificationData, error: verificationError } = await supabaseBrowser
           .from("verification")
           .select("*")
           .eq("user_id", user.id)
@@ -46,7 +45,7 @@ export default function DashboardLayout({
         setIsVerified(true)
 
         // Get user profile
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData, error: profileError } = await supabaseBrowser
           .from("user_profiles")
           .select("*")
           .eq("id", user.id)
