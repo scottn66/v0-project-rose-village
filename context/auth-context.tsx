@@ -39,16 +39,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = getSupabaseBrowser()
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const supabase = getSupabaseBrowser()
+
+    // Initial session fetch
+    const getInitialSession = async () => {
+      setIsLoading(true)
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       setSession(session)
       setUser(session?.user ?? null)
       setIsLoading(false)
-    })
+    }
 
-    // Initial session fetch
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getInitialSession()
+
+    // Set up the auth state change listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
       setIsLoading(false)
