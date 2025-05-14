@@ -24,7 +24,7 @@ export default function VerifyIdentityPage() {
 function VerifyIdentityForm() {
   const router = useRouter()
   const { user } = useAuth()
-  const [loanNumber, setLoanNumber] = useState("")
+  const [phoneNumber, setPhoneNumber] = useState("")
   const [birthday, setBirthday] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -40,7 +40,7 @@ function VerifyIdentityForm() {
       const { data, error: queryError } = await supabase
         .from("debtors")
         .select("*")
-        .eq("loan_number", Number.parseInt(loanNumber, 10))
+        .eq("phone", phoneNumber)
         .eq("birthday", birthday)
         .single()
 
@@ -69,17 +69,18 @@ function VerifyIdentityForm() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl">Verify Your Identity</CardTitle>
-          <CardDescription>Please provide your loan number and date of birth to verify your identity</CardDescription>
+          <CardDescription>Please provide your phone number and date of birth to verify your identity</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="loan-number">Loan Number</Label>
+              <Label htmlFor="phone-number">Phone Number</Label>
               <Input
-                id="loan-number"
-                type="number"
-                value={loanNumber}
-                onChange={(e) => setLoanNumber(e.target.value)}
+                id="phone-number"
+                type="tel"
+                placeholder="555-123-4567"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
                 required
               />
             </div>
