@@ -1,231 +1,215 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useAuth } from "@/context/auth-context"
-import { supabaseBrowser } from "@/lib/supabase-browser"
-import type { Debt, Debtor, Payment } from "@/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
+import ProtectedRoute from "@/components/auth/protected-route"
 import { Button } from "@/components/ui/button"
-import { formatCurrency } from "@/lib/utils"
-import Link from "next/link"
-import { AlertCircle, ArrowRight, Calendar, DollarSign } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getClientSupabase } from "@/lib/supabase"
+import { format } from "date-fns"
 
-export default function Dashboard() {
-  const { user } = useAuth()
-  const [debts, setDebts] = useState<Debt[]>([])
+type Debtor = {
+  id: string
+  first_name: string
+  last_name: string
+  address: string
+  city: string
+  state: string
+  zip: number
+  phone: string
+  email: string
+  loan_number: number
+  account_number: number
+  birthday: string
+}
+
+type Debt = {
+  id: string
+  debtor_id: string
+  loan_number: number
+  account_number: number
+  loan_amount: number
+  balance: number
+  amount_due: number
+  payment_amount: number
+  date_loan_made: string
+  date_first_payment: string
+  date_contract_due: string
+  loan_type: string
+  loan_frequency: string
+  apr: number
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute>
+      <Dashboard />
+    </ProtectedRoute>
+  )
+}
+
+function Dashboard() {
+  const { user, signOut } = useAuth()
+  const router = useRouter()
   const [debtor, setDebtor] = useState<Debtor | null>(null)
-  const [recentPayments, setRecentPayments] = useState<Payment[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [debts, setDebts] = useState<Debt[]>([])
+  const [loading, setLoading] = useState(true)
+  const supabase = getClientSupabase()
 
   useEffect(() => {
-    const fetchData = async () => {
+    async function fetchDebtorData() {
       if (!user) return
 
       try {
-        // Get verification data to find debtor_id
-        const { data: verificationData, error: verificationError } = await supabaseBrowser
-          .from("verification")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("verified", true)
-          .single()
+        // Get the debtor_id from user metadata
+        const { data: userData } = await supabase.auth.getUser()
+        const debtorId = userData.user?.user_metadata?.debtor_id
 
-        if (verificationError || !verificationData) {
-          setError("Verification data not found")
-          setIsLoading(false)
+        if (!debtorId) {
+          // If not verified, redirect to verification
+          router.push("/verify-identity")
           return
         }
 
-        const debtorId = verificationData.debtor_id
-
-        // Get debtor information
-        const { data: debtorData, error: debtorError } = await supabaseBrowser
+        // Fetch debtor data
+        const { data: debtorData, error: debtorError } = await supabase
           .from("debtors")
           .select("*")
           .eq("id", debtorId)
           .single()
 
-        if (debtorError || !debtorData) {
-          setError("Debtor information not found")
-          setIsLoading(false)
-          return
-        }
+        if (debtorError) throw debtorError
+
+        // Fetch debt data
+        const { data: debtData, error: debtError } = await supabase.from("debt").select("*").eq("debtor_id", debtorId)
+
+        if (debtError) throw debtError
 
         setDebtor(debtorData)
-
-        // Get debts
-        const { data: debtsData, error: debtsError } = await supabaseBrowser
-          .from("debt")
-          .select("*")
-          .eq("debtor_id", debtorId)
-
-        if (debtsError) {
-          setError("Error fetching debt information")
-          setIsLoading(false)
-          return
-        }
-
-        setDebts(debtsData || [])
-
-        // Get recent payments
-        if (debtsData && debtsData.length > 0) {
-          const debtIds = debtsData.map((debt) => debt.id)
-
-          const { data: paymentsData, error: paymentsError } = await supabaseBrowser
-            .from("payments")
-            .select("*")
-            .in("debt_id", debtIds)
-            .order("payment_date", { ascending: false })
-            .limit(5)
-
-          if (!paymentsError) {
-            setRecentPayments(paymentsData || [])
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err)
-        setError("An unexpected error occurred")
+        setDebts(debtData || [])
+      } catch (error) {
+        console.error("Error fetching data:", error)
       } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
-    fetchData()
-  }, [user])
+    fetchDebtorData()
+  }, [user, router, supabase])
 
-  if (isLoading) {
+  const handleSignOut = async () => {
+    await signOut()
+    router.push("/auth/sign-in")
+  }
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Loading your information...</h2>
-          <p className="text-muted-foreground">Please wait while we fetch your account details.</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }
-
-  if (error) {
-    return (
-      <Alert variant="destructive" className="mb-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  const totalBalance = debts.reduce((sum, debt) => sum + Number(debt.balance), 0)
-  const totalDue = debts.reduce((sum, debt) => sum + Number(debt.amount_due), 0)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {debtor?.first_name} {debtor?.last_name}
-        </p>
+    <div className="container py-8">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <Button variant="outline" onClick={handleSignOut}>
+          Sign Out
+        </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalBalance)}</div>
-            <p className="text-xs text-muted-foreground">Total amount across all accounts</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Amount Due</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalDue)}</div>
-            <p className="text-xs text-muted-foreground">Current amount due for payment</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Your Accounts</CardTitle>
-            <CardDescription>Overview of your outstanding accounts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {debts.length === 0 ? (
-              <p className="text-muted-foreground">No accounts found</p>
-            ) : (
-              <div className="space-y-4">
-                {debts.map((debt) => (
-                  <div key={debt.id} className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="font-medium">Loan #{debt.loan_number}</p>
-                      <p className="text-sm text-muted-foreground">{debt.loan_type}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">{formatCurrency(debt.balance)}</p>
-                      <p className="text-sm text-muted-foreground">Due: {formatCurrency(debt.amount_due)}</p>
-                    </div>
-                  </div>
-                ))}
-                <div className="pt-2">
-                  <Link href="/payment">
-                    <Button className="w-full">
-                      Make a Payment
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
+      {debtor ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Personal Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="space-y-2">
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Name</dt>
+                  <dd>
+                    {debtor.first_name} {debtor.last_name}
+                  </dd>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Recent Payments</CardTitle>
-            <CardDescription>Your most recent payment activity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentPayments.length === 0 ? (
-              <p className="text-muted-foreground">No recent payments</p>
-            ) : (
-              <div className="space-y-4">
-                {recentPayments.map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between border-b pb-2">
-                    <div>
-                      <p className="font-medium">{payment.payment_method}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(payment.payment_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">{formatCurrency(payment.amount)}</p>
-                      <p className={`text-sm ${payment.status === "completed" ? "text-green-500" : "text-amber-500"}`}>
-                        {payment.status}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                <div className="pt-2">
-                  <Link href="/dashboard/payments">
-                    <Button variant="outline" className="w-full">
-                      View All Payments
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Email</dt>
+                  <dd>{debtor.email || user?.email}</dd>
                 </div>
-              </div>
-            )}
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Phone</dt>
+                  <dd>{debtor.phone || "Not provided"}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Address</dt>
+                  <dd>
+                    {debtor.address}
+                    <br />
+                    {debtor.city}, {debtor.state} {debtor.zip}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Loan Number</dt>
+                  <dd>{debtor.loan_number}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Account Number</dt>
+                  <dd>{debtor.account_number}</dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Debt Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {debts && debts.length > 0 ? (
+                <div className="space-y-4">
+                  {debts.map((debt) => (
+                    <div key={debt.id} className="p-4 border rounded-lg">
+                      <div className="flex justify-between mb-2">
+                        <span className="font-medium">Loan #{debt.loan_number}</span>
+                        <span className="font-bold text-red-500">
+                          ${debt.balance?.toFixed(2) || debt.amount_due?.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>Original Amount: ${debt.loan_amount?.toFixed(2)}</p>
+                        <p>Amount Due: ${debt.amount_due?.toFixed(2)}</p>
+                        <p>Payment Amount: ${debt.payment_amount?.toFixed(2)}</p>
+                        <p>Loan Type: {debt.loan_type || "Standard"}</p>
+                        <p>APR: {debt.apr?.toFixed(2)}%</p>
+                        <p>
+                          Due Date:{" "}
+                          {debt.date_contract_due ? format(new Date(debt.date_contract_due), "MM/dd/yyyy") : "N/A"}
+                        </p>
+                      </div>
+                      <Button className="w-full mt-4" onClick={() => router.push(`/payment/${debt.id}`)}>
+                        Make Payment
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>No debts found.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-center">No data available. Please verify your identity.</p>
+            <div className="flex justify-center mt-4">
+              <Button onClick={() => router.push("/verify-identity")}>Verify Identity</Button>
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   )
 }
